@@ -19,25 +19,30 @@ export const initSocket = (server) => {
     // Authentication Middleware
     io.use(async (socket, next) => {
         const token = socket.handshake.auth.token || socket.handshake.headers['authorization'];
+        const currentSecret = process.env.JWT_SECRET || 'fallback_secret';
 
         if (!token) {
+            console.error('[AUTH] Token missing');
             return next(new Error('Authentication error: Token missing'));
         }
 
         const actualToken = token.startsWith('Bearer ') ? token.split(' ')[1] : token;
 
         try {
-            const decoded = jwt.verify(actualToken, JWT_SECRET);
+            const decoded = jwt.verify(actualToken, currentSecret);
             const user = await userService.getUserById(decoded.id);
             if (!user) {
+                console.error(`[AUTH] User not found: ${decoded.id}`);
                 return next(new Error('Authentication error: User not found'));
             }
             if (user.isSuspended) {
+                console.error(`[AUTH] User suspended: ${user.username}`);
                 return next(new Error('Authentication error: User account suspended'));
             }
             socket.user = user;
             next();
         } catch (err) {
+            console.error(`[AUTH] JWT Verify Error: ${err.message}`);
             return next(new Error('Authentication error: Invalid or expired token'));
         }
     });

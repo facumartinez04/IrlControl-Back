@@ -3,15 +3,20 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret';
-
 class UserService {
+    getSecrets() {
+        return {
+            access: process.env.JWT_SECRET || 'fallback_secret',
+            refresh: process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret'
+        };
+    }
+
     generateTokens(user) {
         const payload = { id: user.id, username: user.username, isAdmin: user.isAdmin };
+        const secrets = this.getSecrets();
 
-        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
-        const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+        const accessToken = jwt.sign(payload, secrets.access, { expiresIn: '1h' });
+        const refreshToken = jwt.sign(payload, secrets.refresh, { expiresIn: '7d' });
 
         return { accessToken, refreshToken };
     }
@@ -66,7 +71,8 @@ class UserService {
 
     async refreshToken(token) {
         try {
-            const payload = jwt.verify(token, JWT_REFRESH_SECRET);
+            const secrets = this.getSecrets();
+            const payload = jwt.verify(token, secrets.refresh);
 
             // Verificar si el usuario aún existe y no está suspendido
             const user = await userRepository.findById(payload.id);
