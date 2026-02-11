@@ -16,34 +16,26 @@ export const initSocket = (server) => {
     // Provide io instance to obsManager for broadcasting
     obsManager.setIo(io);
 
-    // Authentication Middleware
+    // Simplified Middleware: No token validation
     io.use(async (socket, next) => {
-        const token = socket.handshake.auth.token || socket.handshake.headers['authorization'];
-        const currentSecret = process.env.JWT_SECRET || 'fallback_secret';
+        const userId = socket.handshake.auth.userId || socket.handshake.query.userId;
 
-        if (!token) {
-            console.error('[AUTH] Token missing');
-            return next(new Error('Authentication error: Token missing'));
+        if (!userId) {
+            console.error('[SOCKET] Connection rejected: No userId provided');
+            return next(new Error('UserId missing'));
         }
 
-        const actualToken = token.startsWith('Bearer ') ? token.split(' ')[1] : token;
-
         try {
-            const decoded = jwt.verify(actualToken, currentSecret);
-            const user = await userService.getUserById(decoded.id);
+            const user = await userService.getUserById(userId);
             if (!user) {
-                console.error(`[AUTH] User not found: ${decoded.id}`);
-                return next(new Error('Authentication error: User not found'));
-            }
-            if (user.isSuspended) {
-                console.error(`[AUTH] User suspended: ${user.username}`);
-                return next(new Error('Authentication error: User account suspended'));
+                console.error(`[SOCKET] User not found: ${userId}`);
+                return next(new Error('User not found'));
             }
             socket.user = user;
             next();
         } catch (err) {
-            console.error(`[AUTH] JWT Verify Error: ${err.message}`);
-            return next(new Error('Authentication error: Invalid or expired token'));
+            console.error(`[SOCKET] Error fetching user: ${err.message}`);
+            return next(new Error('Error fetching user data'));
         }
     });
 
