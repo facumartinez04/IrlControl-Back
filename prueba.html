@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS Terminal - Debug</title>
+    <style>
+        :root {
+            --neon-green: #00ff41;
+            --dark-bg: #0a0a0a;
+            --panel-bg: #161616;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #terminal {
+            width: 80%;
+            max-width: 800px;
+            height: 60vh;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Cabecera de la ventana */
+        .terminal-header {
+            background: var(--neon-green);
+            color: black;
+            padding: 5px 15px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Área de logs */
+        #output {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        /* Scrollbar personalizada */
+        #output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #output::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 0.7rem;
+            margin-right: 10px;
+        }
+
+        .system {
+            color: #00bfff;
+        }
+
+        /* Azul para info de sistema */
+        .error {
+            color: #ff4757;
+            text-shadow: 0 0 5px #ff4757;
+        }
+
+        .success {
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        /* Efecto de parpadeo al final */
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background: var(--neon-green);
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="terminal">
+        <div class="terminal-header">
+            <span>OBS_WEBSOCKET_DEBUG_v1.0</span>
+            <span>STATUS: <span id="conn-status">CONNECTING</span></span>
+        </div>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const statusSpan = document.getElementById('conn-status');
+
+        function log(msg, type = '') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = `log-entry ${type}`;
+            div.innerHTML = `<span class="timestamp">[${time}]</span><span class="msg">> ${msg}</span>`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Iniciar Conexión
+        log("Iniciando secuencia de conexión nativa...", "system");
+
+        // El túnel Cloudflare no requiere puerto 4455 en la URL del cliente
+        const socket = new WebSocket('wss://50.115.45.206');
+
+        socket.onopen = (e) => {
+            statusSpan.innerText = "OPEN";
+            statusSpan.style.color = "black";
+            log("Handshake TCP completado con el Túnel Cloudflare.", "success");
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            log(`RAW_RECEIVE: ${JSON.stringify(data)}`);
+
+            if (data.op === 0) {
+                log("¡OBS detectado! Protocolo Hello recibido.", "success");
+                log(`RPC Version: ${data.d.rpcVersion}`, "system");
+
+                if (data.d.authentication) {
+                    log("ESTADO: Autenticación requerida por el servidor.", "error");
+                    log("Para avanzar sin la librería, se requiere hashing SHA256 manual.", "system");
+                } else {
+                    log("ESTADO: El servidor no requiere contraseña.", "success");
+                    log("Enviando Identify op:1...");
+                    socket.send(JSON.stringify({ "op": 1, "d": { "rpcVersion": 1 } }));
+                }
+            }
+        };
+
+        socket.onerror = (error) => {
+            statusSpan.innerText = "ERROR";
+            log("CRITICAL ERROR: No se pudo establecer la conexión.", "error");
+            log("Posibles causas: SSL bloqueado, Túnel caído o Firewall de Windows.", "system");
+        };
+
+        socket.onclose = () => {
+            statusSpan.innerText = "CLOSED";
+            log("Conexión finalizada por el host.", "error");
+            // Agregar cursor parpadeante al final
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            output.appendChild(cursor);
+        };
+    </script>
+</body>
+
+</html>

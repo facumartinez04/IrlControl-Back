@@ -14,11 +14,15 @@ app.use(express.json());
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import logRoutes from './routes/logRoutes.js';
+import obsRoutes from './routes/obsRoutes.js';
+import proxyRoutes from './routes/proxyRoutes.js';
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/commands', commandRoutes);
+app.use('/api/obs', obsRoutes);
+app.use('/api/proxy', proxyRoutes);
 
 // Early error handling for undefined routes
 app.use((req, res) => {
