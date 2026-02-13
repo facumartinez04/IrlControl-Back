@@ -1,7 +1,9 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import obsManager from './obsService.js';
+import pluginManager from './pluginService.js';
 import userService from './userService.js';
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
@@ -15,6 +17,7 @@ export const initSocket = (server) => {
 
     // Provide io instance to obsManager for broadcasting
     obsManager.setIo(io);
+    pluginManager.setIo(io);
 
     // Simplified Middleware: No token validation
     io.use(async (socket, next) => {
@@ -67,6 +70,23 @@ export const initSocket = (server) => {
                 if (callback) callback({ success: true, data: response });
             } catch (error) {
                 console.error(`Socket command error [User ${userId}]: ${error.message}`);
+                if (callback) callback({ success: false, error: error.message });
+            }
+        });
+
+        // 5. Initialize Plugin (Port 4456) Connection
+        const pluginConn = await pluginManager.getOrCreateConnection(userId, socket.user.obsConfig);
+        socket.emit('plugin_status', { connected: pluginConn.isConnected });
+
+        socket.on('plugin_command', async (data, callback) => {
+            try {
+                const currentConn = pluginManager.getConnection(userId);
+                if (!currentConn) throw new Error('Plugin Connection instance not found');
+
+                await currentConn.sendCommand(data);
+                if (callback) callback({ success: true });
+            } catch (error) {
+                console.error(`Plugin command error [User ${userId}]: ${error.message}`);
                 if (callback) callback({ success: false, error: error.message });
             }
         });
